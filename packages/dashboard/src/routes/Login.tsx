@@ -1,15 +1,18 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { AuthShell } from "@/components/auth/AuthShell";
+import { TitleSparks } from "@/components/auth/TitleSparks";
 
 export default function Login() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,153 +24,112 @@ export default function Login() {
       await login(email, password);
       navigate("/app");
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      setError(err.message || t("auth.login.failed"));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-        background:
-          "radial-gradient(ellipse at 30% 40%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 55%), var(--color-bg)",
-      }}
+    <AuthShell
+      headerPrompt={t("auth.login.header_prompt")}
+      headerLinkLabel={t("auth.login.header_link")}
+      headerLinkTo="/signup"
+      headerLinkAccent
+      mascot="heart"
     >
-      <div style={{ width: "100%", maxWidth: 380 }}>
-        {/* Brand mark */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            marginBottom: 40,
-            gap: 12,
-          }}
-        >
-          <img
-            src="/logomark.png"
-            alt="Agent Bazaar"
-            style={{
-              width: 72,
-              height: 72,
-              objectFit: "contain",
-              filter: "drop-shadow(0 0 24px color-mix(in srgb, var(--color-primary) 55%, transparent))",
-            }}
-          />
-          <div
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: 22,
-              fontWeight: 400,
-              color: "var(--color-fg)",
-              letterSpacing: "-0.01em",
-              textTransform: "lowercase",
-            }}
-          >
-            agent bazaar
-          </div>
+      <div className="auth-card">
+        <div className="auth-title-wrap">
+          <h1 className="auth-title">
+            <span className="auth-title-create">
+              {t("auth.login.title_1")}
+              <svg className="auth-squiggle auth-squiggle--short" viewBox="0 0 52 12" aria-hidden="true">
+                <path d="M2 9 C12 2, 22 10, 32 5 S44 7, 50 4" />
+              </svg>
+            </span>{" "}
+            <span className="auth-title-account">
+              {t("auth.login.title_2")}
+              <TitleSparks />
+            </span>
+          </h1>
         </div>
+        <p className="auth-subtitle">{t("auth.login.subtitle")}</p>
 
-        {/* Card */}
-        <div
-          style={{
-            background: "var(--color-bg-card)",
-            border: "1px solid var(--color-border)",
-            borderRadius: 16,
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              padding: "24px 28px 0",
-            }}
-          >
-            <h1
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 22,
-                fontWeight: 600,
-                color: "var(--color-fg)",
-                marginBottom: 4,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              Welcome back
-            </h1>
-            <p
-              style={{
-                fontFamily: "var(--font-sans)",
-                fontSize: 13,
-                color: "var(--color-fg-subtle)",
-                marginBottom: 24,
-              }}
-            >
-              Log in to your Agent Bazaar account.
-            </p>
-          </div>
-
-          <form onSubmit={onSubmit} style={{ padding: "0 28px 28px", display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <Label htmlFor="email" style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--color-fg-subtle)" }}>
-                Email
-              </Label>
-              <Input
+        <form onSubmit={onSubmit}>
+          <div className="auth-field">
+            <label className="auth-label" htmlFor="email">
+              {t("auth.email")}
+            </label>
+            <div className="auth-input-wrap">
+              <span className="auth-input-icon">
+                <Mail size={18} strokeWidth={2} />
+              </span>
+              <input
                 id="email"
+                className="auth-input"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                placeholder="you@example.com"
+                placeholder={t("auth.email_placeholder")}
               />
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <Label htmlFor="password" style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--color-fg-subtle)" }}>
-                Password
-              </Label>
-              <Input
+          </div>
+
+          <div className="auth-field">
+            <label className="auth-label" htmlFor="password">
+              {t("auth.password")}
+            </label>
+            <div className="auth-input-wrap">
+              <span className="auth-input-icon">
+                <Lock size={18} strokeWidth={2} />
+              </span>
+              <input
                 id="password"
-                type="password"
+                className="auth-input"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
-                placeholder="••••••••"
+                placeholder={t("auth.password_placeholder_login")}
               />
-            </div>
-            {error && (
-              <p style={{ fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--color-danger)" }}>
-                {error}
-              </p>
-            )}
-            <Button type="submit" size="lg" className="w-full" disabled={loading} style={{ marginTop: 4 }}>
-              {loading ? "Signing in…" : "Sign in"}
-            </Button>
-            <p
-              style={{
-                fontFamily: "var(--font-sans)",
-                fontSize: 12,
-                color: "var(--color-fg-subtle)",
-                textAlign: "center",
-              }}
-            >
-              No account?{" "}
-              <Link
-                to="/signup"
-                style={{ color: "var(--color-primary)", textDecoration: "none", fontWeight: 600 }}
+              <button
+                type="button"
+                className="auth-input-toggle"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? t("auth.hide_password") : t("auth.show_password")}
               >
-                Sign up free
-              </Link>
-            </p>
-          </form>
-        </div>
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          <p className="auth-forgot-wrap">
+            <a href="#" className="auth-forgot">
+              {t("auth.forgot")}
+            </a>
+          </p>
+
+          {error && <p className="auth-error">{error}</p>}
+
+          <button type="submit" className="auth-submit" disabled={loading}>
+            {loading ? t("auth.login.submitting") : t("auth.login.submit")}
+          </button>
+
+          <div className="auth-divider">
+            <span className="auth-divider-line" />
+            <span className="auth-divider-text">{t("auth.or")}</span>
+            <span className="auth-divider-line" />
+          </div>
+
+          <p className="auth-footer-link">
+            {t("auth.login.footer_prompt")}{" "}
+            <Link to="/signup">{t("auth.login.footer_link")}</Link>
+          </p>
+        </form>
       </div>
-    </div>
+    </AuthShell>
   );
 }

@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   BarChart3,
@@ -10,29 +10,57 @@ import {
   Coins,
   Settings as SettingsIcon,
   LogOut,
+  Wallet,
+  Tag,
+  Rocket,
+  Store,
+  ShoppingBag,
+  Plug,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useMode, type DashboardMode } from "@/lib/mode";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api } from "@/lib/api";
-import { formatUsd, lamportsToUsd } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { formatUsd, formatKibix, usdToKibix, KIBIX_LABEL } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { DemoFab } from "@/components/DemoFab";
 
-const nav = [
-  { to: "/app", label: "Overview", icon: LayoutDashboard, end: true },
-  { to: "/app/agents", label: "Agents", icon: Bot },
-  { to: "/app/playground", label: "Playground", icon: Play },
-  { to: "/app/usage", label: "Usage", icon: BarChart3 },
-  { to: "/app/transactions", label: "Transactions", icon: Receipt },
-  { to: "/app/credentials", label: "Credentials", icon: Key },
-  { to: "/app/billing", label: "Billing", icon: CreditCard },
-  { to: "/app/platform", label: "Platform", icon: Coins },
-  { to: "/app/settings", label: "Settings", icon: SettingsIcon },
+// `label` es una clave i18n; se resuelve con t() en el render.
+const consumerNav = [
+  { to: "/app", label: "nav.overview", icon: LayoutDashboard, end: true },
+  { to: "/app/connect", label: "nav.get_started", icon: Plug },
+  { to: "/app/agents", label: "nav.agents", icon: Bot },
+  { to: "/app/playground", label: "nav.playground", icon: Play },
+  { to: "/app/usage", label: "nav.usage", icon: BarChart3 },
+  { to: "/app/transactions", label: "nav.transactions", icon: Receipt },
+  { to: "/app/credentials", label: "nav.credentials", icon: Key },
+  { to: "/app/billing", label: "nav.billing", icon: CreditCard },
+  { to: "/app/settings", label: "nav.settings", icon: SettingsIcon },
+];
+
+const publisherNav = [
+  { to: "/app/publisher", label: "nav.revenue", icon: Coins, end: true },
+  { to: "/app/publisher/agents", label: "nav.my_agents", icon: Bot },
+  { to: "/app/publisher/analytics", label: "nav.analytics", icon: BarChart3 },
+  { to: "/app/publisher/payouts", label: "nav.payouts", icon: Wallet },
+  { to: "/app/publisher/pricing", label: "nav.pricing", icon: Tag },
+  { to: "/app/publisher/publish", label: "nav.publish", icon: Rocket },
 ];
 
 export function AppLayout() {
   const { user, logout } = useAuth();
+  const { mode, setMode } = useMode();
+  const { t } = useTranslation();
   const navigate = useNavigate();
+
+  const nav = mode === "publisher" ? publisherNav : consumerNav;
+
+  const switchMode = (m: DashboardMode) => {
+    setMode(m);
+    navigate(m === "publisher" ? "/app/publisher" : "/app");
+  };
   const { data: balance } = useQuery({
     queryKey: ["balance"],
     queryFn: api.balance,
@@ -54,34 +82,82 @@ export function AppLayout() {
           borderRight: "1px solid var(--color-border)",
         }}
       >
-        {/* Logo */}
+        {/* Brand */}
         <div
-          className="px-5 py-4 flex items-center gap-3"
+          className="px-5 py-4 flex items-center"
           style={{ borderBottom: "1px solid var(--color-border)" }}
         >
-          <img
-            src="/logomark.png"
-            alt="Agent Bazaar"
+          <Link
+            to="/app"
+            className="agent-bazaar-brand-link"
+            aria-label="Agent Bazaar home"
+            style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none" }}
+          >
+            <img
+              src="/logomark.png"
+              alt=""
+              width={26}
+              height={26}
+              className="agent-bazaar-logo"
+              style={{ width: 26, height: 26, objectFit: "contain" }}
+            />
+            <span
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 19,
+                fontWeight: 800,
+                letterSpacing: "-0.03em",
+                color: "var(--color-fg)",
+              }}
+            >
+              agent bazaar<span style={{ color: "var(--color-primary)" }}>.</span>
+            </span>
+          </Link>
+        </div>
+
+        {/* Mode switch — Consumer ⇄ Publisher (same account) */}
+        <div className="px-3 pt-3">
+          <div
             style={{
-              width: 28,
-              height: 28,
-              objectFit: "contain",
-              flexShrink: 0,
-              filter: "drop-shadow(0 0 8px color-mix(in srgb, var(--color-primary) 50%, transparent))",
-            }}
-          />
-          <span
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: 16,
-              fontWeight: 400,
-              color: "var(--color-fg)",
-              letterSpacing: "-0.01em",
-              textTransform: "lowercase",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 4,
+              padding: 4,
+              borderRadius: 999,
+              background: "var(--color-bg-soft)",
+              border: "1px solid var(--color-border)",
             }}
           >
-            agent bazaar
-          </span>
+            {([
+              { m: "consumer" as DashboardMode, label: t("nav.consumer"), icon: ShoppingBag },
+              { m: "publisher" as DashboardMode, label: t("nav.publisher"), icon: Store },
+            ]).map(({ m, label, icon: Icon }) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => switchMode(m)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  padding: "7px 8px",
+                  borderRadius: 999,
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-sans)",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  background: mode === m ? "var(--color-primary)" : "transparent",
+                  color: mode === m ? "var(--color-primary-fg)" : "var(--color-fg-subtle)",
+                  transition: "all var(--dur-fast) var(--ease-out)",
+                }}
+              >
+                <Icon size={13} />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Nav */}
@@ -95,34 +171,34 @@ export function AppLayout() {
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
-                padding: "8px 12px",
-                borderRadius: 8,
+                padding: "9px 14px",
+                borderRadius: 999,
                 textDecoration: "none",
                 fontSize: 13,
                 fontFamily: "var(--font-sans)",
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? "var(--color-fg)" : "var(--color-fg-subtle)",
+                fontWeight: isActive ? 700 : 500,
+                color: isActive ? "var(--color-primary)" : "var(--color-fg-subtle)",
                 background: isActive
-                  ? "color-mix(in srgb, var(--color-primary) 18%, transparent)"
+                  ? "color-mix(in srgb, var(--color-primary) 14%, transparent)"
                   : "transparent",
-                borderLeft: isActive
-                  ? "2px solid var(--color-primary)"
-                  : "2px solid transparent",
                 transition: "all var(--dur-fast) var(--ease-out)",
               })}
               className="nav-item"
             >
               <item.icon size={15} />
-              {item.label}
+              {t(item.label)}
             </NavLink>
           ))}
         </nav>
 
-        {/* Bottom: user + logout */}
+        {/* Bottom: language + user + logout */}
         <div
           className="p-3"
           style={{ borderTop: "1px solid var(--color-border)" }}
         >
+          <div style={{ marginBottom: 10 }}>
+            <LanguageSwitcher variant="sidebar" />
+          </div>
           {user?.email && (
             <div
               style={{
@@ -140,6 +216,7 @@ export function AppLayout() {
             </div>
           )}
           <button
+            type="button"
             onClick={handleLogout}
             style={{
               display: "flex",
@@ -167,7 +244,7 @@ export function AppLayout() {
             }}
           >
             <LogOut size={15} />
-            Log out
+            {t("nav.logout")}
           </button>
         </div>
       </aside>
@@ -201,24 +278,31 @@ export function AppLayout() {
                 color: "var(--color-fg-subtle)",
               }}
             >
-              Balance:{" "}
+              {t("topbar.balance")}{" "}
               <span style={{ color: "var(--color-fg)", fontWeight: 600 }}>
-                {balance ? formatUsd(balance.balance_usd) : "—"}
+                {balance ? `${formatKibix(usdToKibix(balance.balance_usd))} ${KIBIX_LABEL}` : "—"}
               </span>
+              {balance && (
+                <span style={{ color: "var(--color-fg-subtle)", marginLeft: 6 }}>
+                  (= {formatUsd(balance.balance_usd)})
+                </span>
+              )}
             </div>
             <Button size="sm" onClick={() => navigate("/app/billing")}>
-              Top up
+              {t("topbar.top_up")}
             </Button>
           </div>
         </header>
 
         <main
           className="flex-1 overflow-y-auto"
-          style={{ padding: 24, background: "var(--color-bg)" }}
+          style={{ padding: 24, background: "#f4f7fb" }}
         >
           <Outlet />
         </main>
       </div>
+
+      <DemoFab />
 
       <style>{`
         .nav-item:hover {

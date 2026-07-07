@@ -18,30 +18,40 @@ export interface ChainConfig {
   explorerTx: (sig: string) => string;
   /** URL del explorer para una cuenta/dirección. */
   explorerAddr: (addr: string) => string;
+  /** URL del explorer para un contrato (escrow TW en refs de settlements legacy). */
+  explorerContract: (id: string) => string;
+  /** Horizon REST de la red activa — para armar/enviar la tx desde el navegador. */
+  horizonUrl: string;
+  /** Passphrase de la red (Networks.TESTNET / Networks.PUBLIC). */
+  networkPassphrase: string;
+  /** Código del activo USDC. */
+  usdcCode: string;
+  /** Emisor del USDC (debe coincidir con TRUSTLESS_WORK_TRUSTLINE_ADDRESS del gateway). */
+  usdcIssuer: string;
 }
 
 const CONFIGS: Record<string, ChainConfig> = {
-  solana: {
-    key: "solana",
-    asset: "SOL",
-    baseUnitsPerToken: 1_000_000_000,
-    usdRate: 150,
-    networkLabel: "Solana devnet",
-    explorerTx: (sig) => `https://explorer.solana.com/tx/${sig}?cluster=devnet`,
-    explorerAddr: (addr) => `https://explorer.solana.com/address/${addr}?cluster=devnet`,
-  },
   stellar: {
     key: "stellar",
-    asset: "XLM",
+    // Activo de liquidación: USDC (vía Trustless Work). Stellar usa 7 decimales.
+    asset: "USDC",
     baseUnitsPerToken: 10_000_000,
-    usdRate: Number(import.meta.env.VITE_XLM_USD_RATE) || 0.12,
+    usdRate: Number(import.meta.env.VITE_USDC_USD_RATE) || 1.0,
     networkLabel: "Stellar testnet",
     explorerTx: (sig) => `https://stellar.expert/explorer/testnet/tx/${sig}`,
     explorerAddr: (addr) => `https://stellar.expert/explorer/testnet/account/${addr}`,
+    explorerContract: (id) => `https://stellar.expert/explorer/testnet/contract/${id}`,
+    horizonUrl: import.meta.env.VITE_STELLAR_HORIZON_URL || "https://horizon-testnet.stellar.org",
+    networkPassphrase:
+      import.meta.env.VITE_STELLAR_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015",
+    usdcCode: "USDC",
+    usdcIssuer:
+      import.meta.env.VITE_USDC_ISSUER ||
+      "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
   },
 };
 
-const KEY = (import.meta.env.VITE_CHAIN || "solana").toLowerCase();
+const KEY = (import.meta.env.VITE_CHAIN || "stellar").toLowerCase();
 
 /** Config de la cadena activa. */
-export const chain: ChainConfig = CONFIGS[KEY] ?? CONFIGS.solana;
+export const chain: ChainConfig = CONFIGS[KEY] ?? CONFIGS.stellar;

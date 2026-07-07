@@ -121,12 +121,68 @@ export const api = {
 
   // Platform stats — treasury balance + marketplace metrics + revenue
   platformStats: () => request<PlatformStats>("/v1/platform/stats"),
+
+  // Publisher mode — misma cuenta; habilita gestión de agentes + ingresos
+  activatePublisher: (name?: string) =>
+    request<{ is_publisher: boolean; publisher_name: string | null }>("/v1/publisher/activate", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  publisherOverview: () => request<PublisherOverview>("/v1/publisher/overview"),
+  publisherSettlements: (limit = 50) =>
+    request<PublisherSettlements>(`/v1/publisher/settlements?limit=${limit}`),
+  publisherAnalytics: (days = 30) =>
+    request<PublisherAnalytics>(`/v1/publisher/analytics?days=${days}`),
+  // Liquidación bajo demanda: paga on-chain (vía TW) el acumulado de todos los agentes del caller.
+  publisherSettle: () =>
+    request<{ settlements: SettleResult[] }>("/v1/publisher/settle", { method: "POST" }),
+  // Opt-in/out del publisher a la liquidación automática por lotes (cron).
+  setAutoSettle: (enabled: boolean) =>
+    request<{ auto_settle: boolean }>("/v1/publisher/auto-settle", {
+      method: "POST",
+      body: JSON.stringify({ enabled }),
+    }),
+  // SOLO DEMO (gateway con DEMO_TOOLS=1): acredita 1 USDC y fondea el escrow del ciclo.
+  demoFund: (service: string) =>
+    request<DemoFundResult>("/v1/publisher/demo/fund", {
+      method: "POST",
+      body: JSON.stringify({ service }),
+    }),
+
+  // Pagos fiat (Bre-B / Stripe / Wompi) → créditos. Varios métodos a la vez.
+  paymentsConfig: () => request<PaymentsConfig>("/v1/payments/config"),
+  createCharge: (provider: string, amountCop: number, redirectUrl?: string) =>
+    request<PaymentCharge>("/v1/payments/breb/charge", {
+      method: "POST",
+      body: JSON.stringify({ provider, amountCop, redirectUrl }),
+    }),
+  getCharge: (id: string) => request<PaymentCharge>(`/v1/payments/charge/${encodeURIComponent(id)}`),
+  simulateBreb: (chargeId: string) =>
+    request<{ charge: PaymentCharge; new_balance_usd: number; new_balance_kibix: number }>(
+      "/v1/payments/breb/simulate",
+      { method: "POST", body: JSON.stringify({ chargeId }) },
+    ),
+  // Redirect providers (Wompi/Stripe): tras volver del checkout, confirma y acredita.
+  // transactionId = tx id (Wompi) o session id (Stripe).
+  verifyPayment: (chargeId: string, transactionId: string) =>
+    request<{
+      charge: PaymentCharge;
+      status: string;
+      new_balance_usd: number;
+      new_balance_kibix: number;
+    }>("/v1/payments/verify", {
+      method: "POST",
+      body: JSON.stringify({ chargeId, transactionId }),
+    }),
 };
 
 export type User = {
   id: string;
   email: string;
   custodial_wallet: string;
+  /** Modo publisher activo (misma cuenta). Habilita la gestión de agentes + ingresos. */
+  is_publisher?: boolean;
+  publisher_name?: string | null;
   /** Símbolo del activo de liquidación de la cadena activa. */
   asset: "SOL" | "XLM";
   /** Nombre de la unidad base (lamports/stroops). */
@@ -241,7 +297,150 @@ export type MyAgent = {
   totalCalls: number;
   totalEarnedLamports: number;
   totalEarnedSol: number;
+  // Netos del ledger (opcionales: toleran gateway viejo durante el deploy).
+  pendingLamports?: number;
+  pendingSol?: number;
+  settledLamports?: number;
+  settledSol?: number;
   createdAt: number;
+};
+
+/** Respuesta de POST /v1/publisher/demo/fund (solo demo, gateway con DEMO_TOOLS=1). */
+export type DemoFundResult = {
+  ok: boolean;
+  service: string;
+  amount_base_units: number;
+  earning_id: number;
+  /** true si el fondeo TW confirmó on-chain; false = earning acreditado off-chain (legacy). */
+  funded: boolean;
+  escrow_id: string | null;
+  tx_hash: string | null;
+  explorer_url: string | null;
+};
+
+export type PaymentMethod = {
+  provider: string;
+  label: string;
+  country: string | null;
+  mode: "qr" | "redirect" | "deposit";
+  sandbox: boolean;
+};
+
+export type PaymentsConfig = {
+  cop_usd_rate: number;
+  kibix_per_usd: number;
+  methods: PaymentMethod[];
+};
+
+export type PaymentCharge = {
+  id: string;
+  method: string;
+  reference: string;
+  amount_cop: number;
+  amount_usd: number;
+  kibix: number;
+  status: "pending" | "paid" | "expired";
+  detail: {
+    llave?: string;
+    qrPayload?: string;
+    instructions?: string;
+    checkoutUrl?: string;
+    // Depósito cripto (Stellar USDC)
+    depositAddress?: string;
+    memo?: string;
+    network?: string;
+    asset?: string;
+    amountUsdc?: number;
+  };
+  created_at: number;
+  paid_at: number | null;
+};
+
+export type PayoutWallet = {
+  address: string;
+  base_units: number;
+  asset_amount: number;
+  usd: number;
+};
+
+export type SettleResult = {
+  service: string;
+  status: "settled" | "skipped" | "failed";
+  amountLamports: number;
+  escrowId?: string;
+  reason?: string;
+};
+
+export type PublisherOverview = {
+  asset: "SOL" | "XLM";
+  base_unit_name: "lamports" | "stroops";
+  is_publisher: boolean;
+  publisher_name: string | null;
+  auto_settle?: boolean;
+  min_payout?: { base_units: number; asset_amount: number; usd: number };
+  fee: { bps: number; pct: number };
+  totals: {
+    agents: number;
+    calls: number;
+    earned_asset: number;
+    earned_usd: number;
+    // Desglose neto (opcionales: toleran gateway viejo durante el deploy).
+    pending_asset?: number;
+    pending_usd?: number;
+    settled_asset?: number;
+    settled_usd?: number;
+  };
+  wallet: {
+    pubkey: string;
+    base_units: number;
+    asset_amount: number;
+    usd: number;
+  };
+  // Wallets OWNER de los agentes: donde aterriza el dinero liquidado.
+  payout?: {
+    wallets: PayoutWallet[];
+    total_base_units: number;
+    total_asset_amount: number;
+    total_usd: number;
+  };
+  agents: MyAgent[];
+};
+
+export type SettlementRef = { ref: string; kind: "tx" | "contract" | "opaque" };
+
+export type PublisherSettlement = {
+  id: number;
+  service: string;
+  pay_to: string;
+  amount_base_units: number;
+  amount_asset: number;
+  net_base_units: number;
+  net_asset: number;
+  net_usd: number;
+  status: "pending" | "settled" | "failed";
+  created_at: number;
+  settled_at: number | null;
+  refs: SettlementRef[];
+};
+
+export type PublisherSettlements = {
+  asset: string;
+  base_unit_name: string;
+  fee: { bps: number; pct: number };
+  settlements: PublisherSettlement[];
+};
+
+export type PublisherAnalytics = {
+  asset: string;
+  base_unit_name: string;
+  days: number;
+  series: Array<{
+    day: string;
+    calls: number;
+    earned_base_units: number;
+    earned_asset: number;
+    earned_usd: number;
+  }>;
 };
 
 export type X402Step =
