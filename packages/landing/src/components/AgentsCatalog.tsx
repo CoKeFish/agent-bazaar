@@ -24,7 +24,7 @@ type SearchResponse = {
 const FALLBACK: Agent[] = [
   {
     service: "yield-hunter",
-    description: "Compares USDC yields across major Solana DeFi protocols.",
+    description: "Compares USDC yields across major DeFi protocols.",
     endpoint: "",
     pricePerCall: 0.005,
   },
@@ -36,23 +36,43 @@ const FALLBACK: Agent[] = [
   },
 ];
 
-const SUGGESTIONS = [
-  "audit smart contract",
-  "best APY DeFi",
-  "yield optimizer",
-  "rugpull screener",
-];
-
-const MODE_LABELS: Record<Mode, string> = {
-  keyword: "Keyword",
-  semantic: "Semantic",
-  hybrid: "Hybrid",
+// Textos i18n: el .astro padre los calcula con t() y los pasa como props.
+// Defaults en inglés para que el componente funcione aislado.
+export type CatalogStrings = {
+  placeholder: string;
+  modeKeyword: string;
+  modeSemantic: string;
+  modeHybrid: string;
+  tryLabel: string;
+  suggestions: string[];
+  loading: string;
+  noResults: string; // usa el placeholder {query}
+  readDocs: string;
 };
+
+const DEFAULT_STRINGS: CatalogStrings = {
+  placeholder: "Search services — try 'audit contract' or 'best APY'",
+  modeKeyword: "Keyword",
+  modeSemantic: "Semantic",
+  modeHybrid: "Hybrid",
+  tryLabel: "Try:",
+  suggestions: ["audit smart contract", "best APY DeFi", "yield optimizer", "rugpull screener"],
+  loading: "Searching…",
+  noResults: 'No results for "{query}". Try a different query.',
+  readDocs: "Read the docs →",
+};
+
+const MODES: Mode[] = ["keyword", "semantic", "hybrid"];
 
 const MATCH_COLORS: Record<Mode, string> = {
   keyword: "var(--success)",
   semantic: "var(--accent)",
   hybrid: "var(--blue-300)",
+};
+
+// Agentes con página de documentación dedicada en /agents/<service>.
+const DOCS_ROUTES: Record<string, string> = {
+  firecrawl: "/agents/firecrawl",
 };
 
 function serviceToName(service: string): string {
@@ -61,14 +81,34 @@ function serviceToName(service: string): string {
     .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
     .join(" ");
 }
-// Defaults coherentes con los del gateway (SOL_USD_RATE=150, XLM_USD_RATE=0.12).
-// Si llega un token desconocido on-chain, asume SOL como antes para no romper.
-const RATES: Record<string, number> = { SOL: 150, XLM: 0.12 };
+const AVATARS = ["/agents/star.png", "/agents/triangle.png", "/agents/heart.png", "/agents/blob.png", "/agents/circle.png"];
+const SERVICE_AVATARS: Record<string, string> = {
+  "translator-pro": "/agents/heart.png",
+  "price-oracle": "/agents/triangle.png",
+  "yield-hunter": "/agents/circle.png",
+  "risk-auditor": "/agents/blob.png",
+  "code-reviewer": "/agents/star.png",
+};
+function serviceToAvatar(service: string): string {
+  if (SERVICE_AVATARS[service]) return SERVICE_AVATARS[service];
+  let h = 0;
+  for (let i = 0; i < service.length; i++) h = (h * 31 + service.charCodeAt(i)) >>> 0;
+  return AVATARS[h % AVATARS.length];
+}
+// Tasa USD demo: USDC ≈ 1.0 (activo de liquidación vía Trustless Work). Token
+// desconocido → asume USDC. (XLM queda solo por compat de datos antiguos.)
+const RATES: Record<string, number> = { USDC: 1.0, XLM: 0.12 };
 const priceToUsd = (price: number, token?: string) =>
-  (price * (RATES[token ?? "SOL"] ?? RATES.SOL)).toFixed(4);
+  (price * (RATES[token ?? "USDC"] ?? RATES.USDC)).toFixed(4);
 const fmtPrice = (price: number) => price.toFixed(6);
 
-export default function AgentsCatalog() {
+export default function AgentsCatalog({ strings }: { strings?: CatalogStrings }) {
+  const s = strings ?? DEFAULT_STRINGS;
+  const modeLabels: Record<Mode, string> = {
+    keyword: s.modeKeyword,
+    semantic: s.modeSemantic,
+    hybrid: s.modeHybrid,
+  };
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<Mode>("hybrid");
   const [agents, setAgents] = useState<Agent[]>(FALLBACK);
@@ -79,7 +119,7 @@ export default function AgentsCatalog() {
     if (typeof window !== "undefined" && (window as any).__BACKEND_URL__) {
       return (window as any).__BACKEND_URL__ as string;
     }
-    return "https://backend-production-fb67.up.railway.app";
+    return "https://agent-bazaar-data.rodion.com.co";
   }, []);
 
   useEffect(() => {
@@ -139,12 +179,12 @@ export default function AgentsCatalog() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search agents — try 'audit contract' or 'best APY'"
+            placeholder={s.placeholder}
             style={{
               width: "100%",
               padding: "12px 16px",
               borderRadius: "var(--radius-md)",
-              background: "var(--bg-card)",
+              background: "var(--bg-inset)",
               border: "1px solid var(--border-default)",
               color: "var(--fg-1)",
               fontFamily: "var(--font-sans)",
@@ -172,7 +212,7 @@ export default function AgentsCatalog() {
           border: "1px solid var(--border-default)",
           overflow: "hidden",
         }}>
-          {(Object.keys(MODE_LABELS) as Mode[]).map((m) => (
+          {MODES.map((m) => (
             <button
               key={m}
               type="button"
@@ -185,12 +225,12 @@ export default function AgentsCatalog() {
                 border: "none",
                 cursor: "pointer",
                 transition: "all var(--dur-fast) var(--ease-out)",
-                background: mode === m ? "var(--accent)" : "var(--bg-card)",
+                background: mode === m ? "var(--accent)" : "var(--bg-inset)",
                 color: mode === m ? "#fff" : "var(--fg-3)",
                 boxShadow: mode === m ? "0 0 14px color-mix(in srgb, var(--accent) 40%, transparent)" : "none",
               }}
             >
-              {MODE_LABELS[m]}
+              {modeLabels[m]}
             </button>
           ))}
         </div>
@@ -199,12 +239,12 @@ export default function AgentsCatalog() {
       {/* Suggestion chips */}
       {!hasQuery && (
         <div style={{ marginBottom: 24, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <span style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--fg-3)", marginRight: 4 }}>Try:</span>
-          {SUGGESTIONS.map((s) => (
+          <span style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--fg-3)", marginRight: 4 }}>{s.tryLabel}</span>
+          {s.suggestions.map((sug) => (
             <button
-              key={s}
+              key={sug}
               type="button"
-              onClick={() => setQuery(s)}
+              onClick={() => setQuery(sug)}
               style={{
                 padding: "5px 14px",
                 borderRadius: "var(--radius-pill)",
@@ -226,13 +266,34 @@ export default function AgentsCatalog() {
                 e.currentTarget.style.color = "var(--fg-2)";
               }}
             >
-              {s}
+              {sug}
             </button>
           ))}
         </div>
       )}
 
-      {/* Results */}
+      {/* Results — wide list cards */}
+      <style>{`
+        @keyframes acard-in-left {
+          from { opacity: 0; transform: translateX(-28px) rotate(-1.5deg); }
+          to { opacity: 1; transform: none; }
+        }
+        @keyframes acard-in-right {
+          from { opacity: 0; transform: translateX(28px) rotate(1.5deg); }
+          to { opacity: 1; transform: none; }
+        }
+        .acard {
+          display: grid; grid-template-columns: 56px 1fr auto; gap: 18px; align-items: center;
+          background: var(--bg-card); border: 1px solid var(--border-default);
+          border-radius: 18px; padding: 16px 22px; position: relative; overflow: hidden;
+          transition: transform .25s cubic-bezier(0.34, 1.45, 0.64, 1), border-color .2s var(--ease-out), box-shadow .2s var(--ease-out);
+          animation: acard-in-left .5s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .acard:nth-child(even) { animation-name: acard-in-right; }
+        .acard:hover { border-color: var(--accent); transform: translateX(8px) rotate(0.3deg); box-shadow: 0 8px 28px color-mix(in srgb, var(--accent) 14%, transparent); }
+        @media (prefers-reduced-motion: reduce) { .acard { animation: none; } .acard:hover { transform: none; } }
+        @media (max-width: 620px) { .acard { grid-template-columns: 48px 1fr; } .acard-right { grid-column: 2; text-align: left !important; } }
+      `}</style>
       {agents.length === 0 ? (
         <div style={{
           padding: "48px 0",
@@ -241,12 +302,12 @@ export default function AgentsCatalog() {
           fontSize: 14,
           color: "var(--fg-3)",
         }}>
-          {loading ? "Searching…" : `No results for "${query}". Try a different query.`}
+          {loading ? s.loading : s.noResults.replace("{query}", query)}
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
-          {agents.map((a) => (
-            <AgentCard key={a.service} agent={a} hasQuery={hasQuery} />
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {agents.map((a, i) => (
+            <AgentCard key={a.service} agent={a} hasQuery={hasQuery} index={i} readDocs={s.readDocs} />
           ))}
         </div>
       )}
@@ -254,90 +315,75 @@ export default function AgentsCatalog() {
   );
 }
 
-function AgentCard({ agent: a, hasQuery }: { agent: Agent; hasQuery: boolean }) {
-  const [hovered, setHovered] = useState(false);
+const ACCENTS = ["var(--c-pink)", "var(--c-yellow)", "var(--c-green)", "var(--c-purple)", "var(--c-teal)"];
+const AVATAR_BG = ["#FFF0F9", "#FFFBE6", "#F0FFF0", "#F0EDFF", "#E6FFFE"];
+
+function AgentCard({ agent: a, hasQuery, index, readDocs }: { agent: Agent; hasQuery: boolean; index: number; readDocs: string }) {
+  const accent = ACCENTS[index % ACCENTS.length];
+  const avatarBg = AVATAR_BG[index % AVATAR_BG.length];
   return (
-    <div
-      style={{
-        padding: 22,
-        borderRadius: "var(--radius-lg)",
-        border: `1px solid ${hovered ? "color-mix(in srgb, var(--blue-500) 50%, transparent)" : "var(--border-default)"}`,
-        background: "var(--bg-card)",
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        transition: "border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out)",
-        boxShadow: hovered ? "0 0 28px color-mix(in srgb, var(--blue-500) 18%, transparent)" : "none",
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{
-            fontFamily: "var(--font-display)",
-            fontSize: 16,
-            fontWeight: 600,
-            color: "var(--fg-1)",
-            marginBottom: 2,
-          }}>{serviceToName(a.service)}</div>
-          <code style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 11,
-            color: "var(--fg-3)",
-          }}>{a.service}</code>
-        </div>
-        <div style={{ textAlign: "right", flexShrink: 0 }}>
-          <div style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 14,
-            fontWeight: 600,
-            color: "var(--success)",
-          }}>${priceToUsd(a.pricePerCall, a.acceptedToken)}</div>
-          <div style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 11,
-            color: "var(--fg-3)",
-          }}>{fmtPrice(a.pricePerCall)} {a.acceptedToken ?? "SOL"}</div>
-        </div>
+    <div className="acard" style={{ animationDelay: `${Math.min(index, 8) * 0.06}s` }}>
+      {/* Accent bar */}
+      <span style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: accent }} />
+
+      {/* Avatar */}
+      <div style={{
+        width: 56, height: 56, borderRadius: "50%", flexShrink: 0,
+        background: avatarBg,
+        display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+      }}>
+        <img src={serviceToAvatar(a.service)} alt="" style={{ width: 46, height: 46, objectFit: "contain" }} />
       </div>
 
-      <p style={{
-        fontFamily: "var(--font-sans)",
-        fontSize: 13,
-        color: "var(--fg-2)",
-        lineHeight: 1.55,
-        flex: 1,
-      }}>{a.description}</p>
-
-      {hasQuery && a.matchType && typeof a.score === "number" && (
+      {/* Body */}
+      <div style={{ minWidth: 0 }}>
         <div style={{
-          paddingTop: 10,
-          borderTop: "1px solid var(--border-subtle)",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}>
+          fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 800,
+          letterSpacing: "-0.02em", color: "var(--fg-1)", marginBottom: 3,
+        }}>{serviceToName(a.service)}</div>
+        <p style={{
+          fontFamily: "var(--font-sans)", fontSize: 13, color: "var(--fg-2)", lineHeight: 1.5,
+        }}>{a.description}</p>
+        {DOCS_ROUTES[a.service] && (
+          <a
+            href={DOCS_ROUTES[a.service]}
+            style={{
+              fontFamily: "var(--font-sans)",
+              fontSize: 12,
+              fontWeight: 700,
+              color: accent,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              marginTop: 6,
+            }}
+          >
+            {readDocs}
+          </a>
+        )}
+      </div>
+
+      {/* Right: price + badge */}
+      <div className="acard-right" style={{ textAlign: "right", flexShrink: 0 }}>
+        <div style={{
+          fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 800, color: "var(--accent)",
+        }}>${priceToUsd(a.pricePerCall, a.acceptedToken)}</div>
+        <div style={{
+          fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--fg-3)", marginTop: 2,
+        }}>{fmtPrice(a.pricePerCall)} {a.acceptedToken ?? "XLM"}</div>
+        {hasQuery && a.matchType && typeof a.score === "number" && (
           <span style={{
-            padding: "3px 10px",
-            borderRadius: "var(--radius-pill)",
-            fontFamily: "var(--font-mono)",
-            fontSize: 11,
-            fontWeight: 600,
-            background: `color-mix(in srgb, ${MATCH_COLORS[a.matchType]} 14%, transparent)`,
+            display: "inline-block", marginTop: 8,
+            padding: "3px 10px", borderRadius: 999,
+            fontFamily: "var(--font-sans)", fontSize: 10.5, fontWeight: 700,
+            background: `color-mix(in srgb, ${MATCH_COLORS[a.matchType]} 15%, transparent)`,
             color: MATCH_COLORS[a.matchType],
           }}>
-            {a.matchType}
+            {a.matchType} · {(a.score * 100).toFixed(0)}%
           </span>
-          <span style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 11,
-            color: "var(--fg-3)",
-          }}>
-            score {(a.score * 100).toFixed(0)}%
-          </span>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
